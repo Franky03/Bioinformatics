@@ -1,4 +1,4 @@
-from Bio.PDB import PDBParser, Selection, NeighborSearch
+from Bio.PDB import PDBParser, Selection, NeighborSearch, HSExposureCA
 from Bio.PDB.DSSP import DSSP
 from Bio.PDB.Residue import Residue
 from Bio.PDB.vectors import calc_angle
@@ -11,7 +11,7 @@ import time
 class Nodes:
     def __init__(self, name_=None,file_=False):
         self.name= name_
-        self.parser= PDBParser()
+        self.parser= PDBParser(PERMISSIVE=False)
         self.structure= self.parser.get_structure(name_, file_)
         self.model= self.structure[0]
         #self.dssp = DSSP(self.model, './Codes/3og7.pdb', file_type='PDB', dssp='dssp')
@@ -149,33 +149,24 @@ class Edges(Nodes):
     def Hidrogen_Bond(self):
         #achar como calcular o angulo entre os átomos
         cutoff = 8.0
-        hbond = 3.1
-        global carbono_alfa
-
+        hbond = 3.5
         for residue in self.structure.get_residues():
-
-            for atom in residue:
-                if atom.get_name() == 'CA':
-                    carbono_alfa = atom
-                    print(carbono_alfa)
-
             for atom in residue:
                 neighbors= self.ns.search(atom.coord, cutoff)
-
                 for neighbor in neighbors:
                     distance= np.linalg.norm(atom.coord - neighbor.coord)
-
                     if atom.fullname[1] in ['N', 'O'] and neighbor.fullname[1] in ['N', 'O']:
-                        
-                        atom_vector= atom.get_vector()
-                        neigh_vector = neighbor.get_vector()
-                        ca_vector = carbono_alfa.get_vector()
-                        angle = calc_angle(atom_vector, neigh_vector, ca_vector)
 
-                        if 0.0 < distance <= 3.5 and angle<=67.0 :
-                            print(atom, residue.id[1], neighbor, neighbor.get_parent().id[1], distance, angle)
+                        # terceiro_vetor = ????
 
+                        # terceiro_vetor= carbono_alfa.get_vector()
+                        # neighbor_vector= neighbor.get_vector()
+                        # a_vector = atom.get_vector()
 
+                        # angle = np.degrees(calc_angle(terceiro_vetor, neighbor_vector, a_vector))
+
+                        if 0.0 < distance <= 3.5:
+                            print(atom, residue.id[1], neighbor, neighbor.get_parent().id[1], f"{distance:.3f}")
 
 
 edges= Edges('file_30', './Codes/3og7.pdb')
