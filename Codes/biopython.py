@@ -1,6 +1,7 @@
 from Bio.PDB import PDBParser, Selection, NeighborSearch
 from Bio.PDB.DSSP import DSSP
 from Bio.PDB.Residue import Residue
+from Bio.PDB.vectors import calc_angle
 import numpy as np
 import pandas as pd
 import time
@@ -116,69 +117,67 @@ class Nodes:
 
         print(f"---{(time.time() - start)} seconds ---")
 
+
+
 class Edges(Nodes):
     def __init__(self, name, file_pdb):
         Nodes.__init__(self ,name_=name, file_= file_pdb)
         self.edges = []
         self.res= [res for res in self.structure.get_residues()]
-        self.params = {
-            'Hydrogen_Bond': [3.1, 0],
-            'Salt_Bridge': [4.0, 0],
-            'Dissulfide_Bond': [2.2, 0],
-            'Van_der_Waals': [3.2, 0],
-            'Pi_Stacking': [7.2, 0],
-            'Sulfur_Aryl': [7.2, 0],
-            'Cation_Aryl': [6, 0],
-            'Anion_Aryl': [3.5, 0],
-            "tshaped": 0,
-            "inter": 0,
-            "paralel": 0,
-            'lighbacep': ['OD1', 'OD2', 'OE1', 'OE2', 'OG', 'OG1'],
-            'lighbdono': ['HE1', 'H', 'HE', 'HH11', 'HH12', 'HH21',
-                          'HH22', 'HD1', 'HE2', 'HG', 'HG1', 'HG21', 'HG22',
-                          'HG23', 'HH', 'HD21', 'HD22', 'HE21', 'HE22'],
-            'ligsb1': ['OD2', 'OE2', 'OH'],
-            'ligsb2': ['NZ', 'NH2', 'NH1'],
-            'aasbneg': ['ASP', 'GLU'],
-            'aasbpos': ['LYS', 'ARG'],
-            'ligvdw': ['CB', 'CG1', 'CG2', 'CD1', 'CD2', 'CE'],
-            'aavdw': ['VAL', 'TRE', 'MET', 'LEU', 'ILE'],
-            'aa_arom': ['TYR', 'PHE', 'TRP'],
-            'ligctn': ['MG', 'CU', 'K', 'FE2', 'FE', 'NI', 'NA', 'MO1', 'MO3', 'MO4',
-                       'MO5', 'MO6', 'MO7', 'MO8', 'MO9', 'NZ', 'NH2', 'NH1'],
-            'ligctn2': ['CG', 'CE2', 'CG'],
-            'aactn_beg': 3.4,
-            'aactn_end': 4.0,
-            'ligan1': ['CL', 'BR', 'I', 'OD2', 'OE2', 'OH'],
-            'ligspi1': ['SG'],
-            'ligspi2': ['CG', 'CE2', 'CG'],
-            'aaan_beg': 2.0,
-            'aaan_end': 3.0,
-            'aaspi': 5.3
-            }
-    
-    def search_edges(self):
-        for i, res1 in enumerate(self.res):
-            if 'CA' in res1:
-                for j, res2 in enumerate(self.res):
-                    if i<j:
-                        if 'CA' in res2:
-                            distance= np.linalg.norm(res1["CA"].coord - res2["CA"].coord)
-                            print(res1.resname, res2.resname)
-    
-    def bonds(self):
-        ns= NeighborSearch(list(self.structure.get_atoms()))
-        bonds= ns.search_all(3)
-        for bond in bonds:
-            atom1, atom2= bond
-            print(atom1, atom2)
-            if atom1.element == 'H' or atom2 == 'H':
-                print('HBOND')
-            elif (atom1.element == "C" and atom2.element == "C") or (atom1.element == "N" and atom2.element == "N"):
-                print('VDW')
+        self.ns= NeighborSearch(list(self.structure.get_atoms()))
+        
 
-                    
+    def Iac(self):
 
-node= Edges('file_30', './Codes/file_30.pdb')
-node.bonds()
+        # Eles não calculam mais essas ligações na nova versão 
+
+        lig_032 = []
+        for residue in self.structure.get_residues():
+            if str(residue.resname) == "032":
+                lig_032.append(residue)
+        
+        for residue in lig_032:
+            for atom in residue:
+                for neighbor_pair in self.ns.search(atom.coord, 6.5, level= 'R'):
+                    for atom2 in neighbor_pair:
+                        if atom2.get_name() == 'CA':
+                            distance = np.linalg.norm(atom.coord - atom2.coord)
+                            #verificando se o átomo vizinho é de outro resíduo
+                            if neighbor_pair != residue:
+                                print(residue.resname, neighbor_pair.resname, neighbor_pair.id[1], distance)
+    
+    def Hidrogen_Bond(self):
+        #achar como calcular o angulo entre os átomos
+        cutoff = 8.0
+        hbond = 3.1
+        global carbono_alfa
+
+        for residue in self.structure.get_residues():
+
+            for atom in residue:
+                if atom.get_name() == 'CA':
+                    carbono_alfa = atom
+                    print(carbono_alfa)
+
+            for atom in residue:
+                neighbors= self.ns.search(atom.coord, cutoff)
+
+                for neighbor in neighbors:
+                    distance= np.linalg.norm(atom.coord - neighbor.coord)
+
+                    if atom.fullname[1] in ['N', 'O'] and neighbor.fullname[1] in ['N', 'O']:
+                        
+                        atom_vector= atom.get_vector()
+                        neigh_vector = neighbor.get_vector()
+                        ca_vector = carbono_alfa.get_vector()
+                        angle = calc_angle(atom_vector, neigh_vector, ca_vector)
+
+                        if 0.0 < distance <= 3.5 and angle<=67.0 :
+                            print(atom, residue.id[1], neighbor, neighbor.get_parent().id[1], distance, angle)
+
+
+
+
+edges= Edges('file_30', './Codes/3og7.pdb')
+edges.Hidrogen_Bond()
 
