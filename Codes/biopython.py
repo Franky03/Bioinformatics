@@ -165,7 +165,8 @@ class Edges(Nodes):
 
         #                         if 0.0 < distance <= 3.5 and angle <= 63.0:
         #                             print(atom, residue.id[1], neighbor, neighbor.get_parent().id[1], f"{distance:.3f}", atom.get_name(), neighbor.get_name(), angle)
-        print('ASN' in list(self.lighbac.keys()))
+        for residue in self.structure.get_residues():
+            print(residue.child_list[0])
 
     def Iac(self):
 
@@ -186,7 +187,7 @@ class Edges(Nodes):
                             if neighbor_pair != residue:
                                 print(residue.resname, neighbor_pair.resname, neighbor_pair.id[1], distance)
     
-    def Hidrogen_Bond(self):
+    def Hydrogen_Bond(self):
         chain1= ''
         chain2= ''
         #achar como calcular o angulo entre os átomos
@@ -199,24 +200,18 @@ class Edges(Nodes):
                     distance= np.linalg.norm(atom.coord - neighbor.coord)
                     # atomo como doador 
                     if atom.fullname[1] in ['N', 'O'] and neighbor.fullname[1] in ['N', 'O']:
-                        if 'CA' in neighbor.get_parent():
-                            carbono_alfa = neighbor.get_parent()["CA"]
-
+                        if 'CA' in residue:
+                            carbono_alfa = residue.child_list[0]
+                            
                             terceiro_vetor= carbono_alfa.get_vector()
                             neighbor_vector= neighbor.get_vector()
                             a_vector = atom.get_vector()
 
-                            angle = np.degrees(calc_angle(terceiro_vetor, neighbor_vector, a_vector)
-)
+                            angle = np.degrees(calc_angle( terceiro_vetor,neighbor_vector, a_vector))
                             if 0.0 < distance <= 3.5:
-                                print(atom, residue.id[1], neighbor, neighbor.get_parent().id[1], f"{distance:.3f}", angle)
-                    
-                    
-
-                    
+                                print(atom, residue.id[1], residue.resname, neighbor, neighbor.get_parent().id[1], neighbor.get_parent().resname, f"{distance:.3f}", angle)
                     
 
-
-edges= Edges('file_30', './Codes/3og7.pdb')
-edges.Hidrogen_Bond()
+edges= Edges('3og7', './Codes/3og7.pdb')
+edges.Hydrogen_Bond()
 
