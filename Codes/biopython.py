@@ -1,4 +1,4 @@
-from Bio.PDB import PDBParser, Selection, NeighborSearch, HSExposureCA
+from Bio.PDB import PDBParser, Selection, NeighborSearch, Atom
 from Bio.PDB.DSSP import DSSP
 from Bio.PDB.Residue import Residue
 from Bio.PDB.vectors import calc_angle
@@ -125,7 +125,47 @@ class Edges(Nodes):
         self.edges = []
         self.res= [res for res in self.structure.get_residues()]
         self.ns= NeighborSearch(list(self.structure.get_atoms()))
-        
+        self.mc = ['O', 'N']
+        self.lighbdonor = {'ARG': ['NE', 'NH1', 'NH2'], 
+                            'ASN':['ND2'], 'HIS': ['NE2', 'ND1'], 
+                            'SER': ['OG'], 'TYR': ['OH'], 'CYS': ['SG'],
+                             'THR': ['OG1'], 'GLN': ['NE2'], 'LYS': ['NZ'], 'TRP': ['NE1']}
+        self.lighbac= {'ASN': ['OD1'], 'GLN': ['OE1'],
+                         'MET': ['SD'], 'ASP': ['OD1', 'OD2'], 
+                         'GLU': ['OE1', 'OE2'], 'SER': ['OG'], 
+                         'THR': ['OG1'], 'HIS': ['ND1'], 'TYR': ['OH']}
+
+    def test(self):
+        # if residue.resname in list(self.lighbac.keys()) and neighbor.get_parent().resname in list(self.lighbdonor.keys()):
+        #                 if 'CA' in neighbor.get_parent():
+        #                     #Se os atomos estiverem na lista de seus respectivos residuoes
+        #                     if atom.name in self.lighbac[residue.resname] and neighbor.name in self.lighbdonor[neighbor.get_parent().resname] or (atom.fullname in self.mc and neighbor.fullname in self.mc):
+        #                         carbono_alfa= neighbor.get_parent()["CA"]
+
+        #                         terceiro_vetor= carbono_alfa.get_vector()
+        #                         neighbor_vector= neighbor.get_vector()
+        #                         a_vector = atom.get_vector()
+                        
+        #                         angle = np.degrees(calc_angle(terceiro_vetor, neighbor_vector, a_vector))
+
+        #                         if 0.0 < distance <= 3.5 and angle <= 63.0:
+        #                             print(atom, residue.id[1], neighbor, neighbor.get_parent().id[1], f"{distance:.3f}", atom.get_name(), neighbor.get_name(), angle)
+
+        #             elif residue.resname in list(self.lighbdonor.keys()) and neighbor.get_parent().resname in list(self.lighbac.keys()):
+        #                 if 'CA' in residue:
+        #                     if atom.name in self.lighbdonor[residue.resname] and neighbor.name in self.lighbac[neighbor.get_parent().resname] or (atom.fullname in self.mc and neighbor.fullname in self.mc):
+                                
+        #                         carbono_alfa= atom.get_parent()["CA"]
+
+        #                         terceiro_vetor= carbono_alfa.get_vector()
+        #                         neighbor_vector= neighbor.get_vector()
+        #                         a_vector = atom.get_vector()
+                        
+        #                         angle = np.degrees(calc_angle(terceiro_vetor, neighbor_vector, a_vector))
+
+        #                         if 0.0 < distance <= 3.5 and angle <= 63.0:
+        #                             print(atom, residue.id[1], neighbor, neighbor.get_parent().id[1], f"{distance:.3f}", atom.get_name(), neighbor.get_name(), angle)
+        print('ASN' in list(self.lighbac.keys()))
 
     def Iac(self):
 
@@ -147,6 +187,8 @@ class Edges(Nodes):
                                 print(residue.resname, neighbor_pair.resname, neighbor_pair.id[1], distance)
     
     def Hidrogen_Bond(self):
+        chain1= ''
+        chain2= ''
         #achar como calcular o angulo entre os átomos
         cutoff = 8.0
         hbond = 3.5
@@ -155,18 +197,24 @@ class Edges(Nodes):
                 neighbors= self.ns.search(atom.coord, cutoff)
                 for neighbor in neighbors:
                     distance= np.linalg.norm(atom.coord - neighbor.coord)
+                    # atomo como doador 
                     if atom.fullname[1] in ['N', 'O'] and neighbor.fullname[1] in ['N', 'O']:
+                        if 'CA' in neighbor.get_parent():
+                            carbono_alfa = neighbor.get_parent()["CA"]
 
-                        # terceiro_vetor = ????
+                            terceiro_vetor= carbono_alfa.get_vector()
+                            neighbor_vector= neighbor.get_vector()
+                            a_vector = atom.get_vector()
 
-                        # terceiro_vetor= carbono_alfa.get_vector()
-                        # neighbor_vector= neighbor.get_vector()
-                        # a_vector = atom.get_vector()
+                            angle = np.degrees(calc_angle(terceiro_vetor, neighbor_vector, a_vector)
+)
+                            if 0.0 < distance <= 3.5:
+                                print(atom, residue.id[1], neighbor, neighbor.get_parent().id[1], f"{distance:.3f}", angle)
+                    
+                    
 
-                        # angle = np.degrees(calc_angle(terceiro_vetor, neighbor_vector, a_vector))
-
-                        if 0.0 < distance <= 3.5:
-                            print(atom, residue.id[1], neighbor, neighbor.get_parent().id[1], f"{distance:.3f}")
+                    
+                    
 
 
 edges= Edges('file_30', './Codes/3og7.pdb')
