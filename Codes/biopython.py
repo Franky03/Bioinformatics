@@ -1,4 +1,4 @@
-from Bio.PDB import PDBParser, Selection, NeighborSearch, Atom
+from Bio.PDB import PDBParser, Selection, NeighborSearch, HSExposure
 from Bio.PDB.DSSP import DSSP
 from Bio.PDB.Residue import Residue
 from Bio.PDB.vectors import calc_angle
@@ -11,7 +11,7 @@ import time
 class Nodes:
     def __init__(self, name_=None,file_=False):
         self.name= name_
-        self.parser= PDBParser(PERMISSIVE=False)
+        self.parser= PDBParser(PERMISSIVE=1)
         self.structure= self.parser.get_structure(name_, file_)
         self.model= self.structure[0]
         #self.dssp = DSSP(self.model, './Codes/3og7.pdb', file_type='PDB', dssp='dssp')
@@ -136,37 +136,8 @@ class Edges(Nodes):
                          'THR': ['OG1'], 'HIS': ['ND1'], 'TYR': ['OH']}
 
     def test(self):
-        # if residue.resname in list(self.lighbac.keys()) and neighbor.get_parent().resname in list(self.lighbdonor.keys()):
-        #                 if 'CA' in neighbor.get_parent():
-        #                     #Se os atomos estiverem na lista de seus respectivos residuoes
-        #                     if atom.name in self.lighbac[residue.resname] and neighbor.name in self.lighbdonor[neighbor.get_parent().resname] or (atom.fullname in self.mc and neighbor.fullname in self.mc):
-        #                         carbono_alfa= neighbor.get_parent()["CA"]
-
-        #                         terceiro_vetor= carbono_alfa.get_vector()
-        #                         neighbor_vector= neighbor.get_vector()
-        #                         a_vector = atom.get_vector()
-                        
-        #                         angle = np.degrees(calc_angle(terceiro_vetor, neighbor_vector, a_vector))
-
-        #                         if 0.0 < distance <= 3.5 and angle <= 63.0:
-        #                             print(atom, residue.id[1], neighbor, neighbor.get_parent().id[1], f"{distance:.3f}", atom.get_name(), neighbor.get_name(), angle)
-
-        #             elif residue.resname in list(self.lighbdonor.keys()) and neighbor.get_parent().resname in list(self.lighbac.keys()):
-        #                 if 'CA' in residue:
-        #                     if atom.name in self.lighbdonor[residue.resname] and neighbor.name in self.lighbac[neighbor.get_parent().resname] or (atom.fullname in self.mc and neighbor.fullname in self.mc):
-                                
-        #                         carbono_alfa= atom.get_parent()["CA"]
-
-        #                         terceiro_vetor= carbono_alfa.get_vector()
-        #                         neighbor_vector= neighbor.get_vector()
-        #                         a_vector = atom.get_vector()
-                        
-        #                         angle = np.degrees(calc_angle(terceiro_vetor, neighbor_vector, a_vector))
-
-        #                         if 0.0 < distance <= 3.5 and angle <= 63.0:
-        #                             print(atom, residue.id[1], neighbor, neighbor.get_parent().id[1], f"{distance:.3f}", atom.get_name(), neighbor.get_name(), angle)
         for residue in self.structure.get_residues():
-            print(residue.child_list[0])
+            print(residue)
 
     def Iac(self):
 
@@ -193,15 +164,20 @@ class Edges(Nodes):
         #achar como calcular o angulo entre os átomos
         cutoff = 8.0
         hbond = 3.5
+
+        #já verifiquei as condições para ser o doador ou o aceitador, só falta realmente esse ângulo e saber se é MC ou SC
+
         for residue in self.structure.get_residues():
             for atom in residue:
                 neighbors= self.ns.search(atom.coord, cutoff)
                 for neighbor in neighbors:
                     distance= np.linalg.norm(atom.coord - neighbor.coord)
-                    # atomo como doador 
-                    if atom.fullname[1] in ['N', 'O'] and neighbor.fullname[1] in ['N', 'O']:
-                        if 'CA' in residue:
-                            carbono_alfa = residue.child_list[0]
+                    # atomo como aceitador e neighbor como doador 
+
+                    if residue.resname in list(self.lighbac.keys()) and neighbor.get_parent().resname in list(self.lighbdonor.keys()):
+                        if atom.name in self.lighbac[residue.resname] and neighbor.name in self.lighbdonor[neighbor.get_parent().resname] or atom.fullname[1] in self.mc and neighbor.fullname[1] in self.mc: 
+                            
+                            carbono_alfa = neighbor.get_parent().child_list[0]
                             
                             terceiro_vetor= carbono_alfa.get_vector()
                             neighbor_vector= neighbor.get_vector()
@@ -210,8 +186,19 @@ class Edges(Nodes):
                             angle = np.degrees(calc_angle( terceiro_vetor,neighbor_vector, a_vector))
                             if 0.0 < distance <= 3.5:
                                 print(atom, residue.id[1], residue.resname, neighbor, neighbor.get_parent().id[1], neighbor.get_parent().resname, f"{distance:.3f}", angle)
-                    
+
+                    #atomo como doador e neighbor como aceitador
+                    elif residue.resname in list(self.lighbdonor.keys()) and neighbor.get_parent().resname in list(self.lighbac.keys()):
+                        if atom.name in self.lighbdonor[residue.resname] and neighbor.name in self.lighbac[neighbor.get_parent().resname] or (atom.fullname[1] in self.mc and neighbor.fullname[1] in self.mc):
+                            carbono_alfa = residue.child_list[0]
+                            
+                            terceiro_vetor= carbono_alfa.get_vector()
+                            neighbor_vector= neighbor.get_vector()
+                            a_vector = atom.get_vector()
+
+                            angle = np.degrees(calc_angle( terceiro_vetor, a_vector, neighbor_vector))
+                            if 0.0 < distance <= 3.5:
+                                print(atom, residue.id[1], residue.resname, neighbor, neighbor.get_parent().id[1], neighbor.get_parent().resname, f"{distance:.3f}")
 
 edges= Edges('3og7', './Codes/3og7.pdb')
 edges.Hydrogen_Bond()
-
