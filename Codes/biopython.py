@@ -1,6 +1,5 @@
 from Bio.PDB import PDBParser, Selection, NeighborSearch, HSExposure
 from Bio.PDB.DSSP import DSSP
-from Bio.PDB.Residue import Residue
 from Bio.PDB.vectors import calc_angle
 import numpy as np
 import pandas as pd
@@ -84,7 +83,6 @@ class Nodes:
                         self.models.append(model.id + 1)
 
     def print_output(self):
-        start= time.time()
         self.search_nodes()
         for n in range(len(self.nodes_id)):
             try:
@@ -97,10 +95,8 @@ class Nodes:
                         f"{self.degrees[n]}\t{self.bfactors[n]}\t{self.coords[n][0]}\t{self.coords[n][1]}\t{self.coords[n][2]}\t" +
                         f"{self.pdb_filename[n]}\t{self.models[n]}"
                 )
-        print(f"---{(time.time() - start)} seconds ---")
 
     def to_file(self):
-        start= time.time()
         self.search_nodes()
 
         colunas= ["NodeId", "Chain","Position",	"Residue",	"Dssp",	"Degree", "Bfactor_CA", "x", "y", "z", "pdbFileName", "Model"]
@@ -113,8 +109,7 @@ class Nodes:
         )), columns= colunas)
         
         data.to_csv(f'./{self.name}.csv', sep='\t', index=False)
-
-        print(f"---{(time.time() - start)} seconds ---")
+ 
 
 
 
@@ -133,35 +128,12 @@ class Edges(Nodes):
                          'MET': ['SD'], 'ASP': ['OD1', 'OD2'], 
                          'GLU': ['OE1', 'OE2'], 'SER': ['OG'], 
                          'THR': ['OG1'], 'HIS': ['ND1'], 'TYR': ['OH']}
+        self.nodes_id1, self.nodes_id2, self.bonds= [], [], []
+        self.distances, self.donors= [], []
+        self.atom1, self.atom2 = [], []
+        
 
     def test(self):
-        # if residue.resname in list(self.lighbac.keys()) and neighbor.get_parent().resname in list(self.lighbdonor.keys()):
-        #                 if atom.name in self.lighbac[residue.resname] and neighbor.name in self.lighbdonor[neighbor.get_parent().resname] or atom.fullname[1] in self.mc and neighbor.fullname[1] in self.mc: 
-                            
-        #                     carbono_alfa = neighbor.get_parent().child_list[0]
-                            
-        #                     terceiro_vetor= carbono_alfa.get_vector()
-        #                     neighbor_vector= neighbor.get_vector()
-        #                     a_vector = atom.get_vector()
-
-        #                     angle = np.degrees(calc_angle( terceiro_vetor,neighbor_vector, a_vector))
-        #                     if 0.0 < distance <= 3.5:
-        #                         print(atom, residue.id[1], residue.resname, neighbor, neighbor.get_parent().id[1], neighbor.get_parent().resname, f"{distance:.3f}", angle)
-
-        # #atomo como doador e neighbor como aceitador
-        # elif residue.resname in list(self.lighbdonor.keys()) and neighbor.get_parent().resname in list(self.lighbac.keys()):
-        #     if atom.name in self.lighbdonor[residue.resname] and neighbor.name in self.lighbac[neighbor.get_parent().resname] or (atom.fullname[1] in self.mc and neighbor.fullname[1] in self.mc):
-                
-        #         carbono_alfa = residue.child_list[0]
-                
-        #         terceiro_vetor= carbono_alfa.get_vector()
-        #         neighbor_vector= neighbor.get_vector()
-        #         a_vector = atom.get_vector()
-
-        #         angle = np.degrees(calc_angle( terceiro_vetor, a_vector, neighbor_vector))
-        #         if 0.0 < distance <= 3.5:
-        #             print(atom, residue.id[1], residue.resname, neighbor, neighbor.get_parent().id[1], neighbor.get_parent().resname, f"{distance:.3f}")
-
         for atoms in self.structure.get_atoms():
             print(atoms)
 
@@ -185,69 +157,149 @@ class Edges(Nodes):
                                 print(residue.resname, neighbor_pair.resname, neighbor_pair.id[1], distance)
     
     def Bonds(self):
+        chain1= ''
+        chain2= ''
         vdw_radii = {'C': 1.77, 'S': 1.89, 'N': 1.8, 'O': 1.4}
+        is_vdw = False
+        h_donor = [atom for atom in self.structure.get_atoms()][0]
+        global n_or_o_donor
 
         #achar como calcular o angulo entre os átomos
+        for model in self.structure:
+            for chain in model:
+                for residue in chain:
+                    if residue.resname in ['032', 'HOH']:
+                        continue
+                    for atom in residue:
+                        atom_name= atom.get_name()
+                        is_vdw = False
 
-        #já verifiquei as condições para ser o doador ou o aceitador, só falta realmente esse ângulo e saber se é MC ou SC
-
-        for residue in self.structure.get_residues():
-            for atom in residue:
-                # Looking for HBOND
-                if atom.fullname[1] in ['N', 'O']:
-                    neighbors= self.ns.search(atom.coord, 5.5)
-                    for neighbor in neighbors:  
-                        if neighbor.get_parent().id[1] == residue.id[1]:
+                        # Looking for HBOND
+                        if atom.fullname[1] in ['N', 'O'] or (atom_name == 'SG' and residue.resname == 'CYS'):
+                            neighbors= self.ns.search(atom.coord, 5.5)
+                            for neighbor in neighbors:
+                                neig_name= neighbor.get_name()
+                                neig_res= neighbor.get_parent()
+                                if neig_res.resname in ['HOH', '032']:
                                     continue
-                        if neighbor.fullname[1] in ['N', 'O']:
-                            distance= np.linalg.norm(atom.coord - neighbor.coord)
-                            # atomo como aceitador e neighbor como doador 
+                                if neig_res.id[1] == residue.id[1] or neig_name[0] == atom_name[0]:
+                                            continue
+                                if neighbor.fullname[1] in ['N', 'O'] or (neighbor.get_name() == 'SG' and neig_res.resname == 'CYS'):
+                                    distance= np.linalg.norm(atom.coord - neighbor.coord)
+                                    #Verificando quem é doador
+                                    if (atom_name[0] == 'N' or (atom_name in ['OG', 'OH', 'OG1', 'SG'] and residue.resname in list(self.lighbdonor.keys()))) and (neig_name[0] == 'O' or (neig_name in ['SD', 'ND1'] and neig_res.resname in list(self.lighbac.keys()))):
+                                        # Aqui o doador vai ser o atomo principal
+                                        h_donor = residue.child_list[0]
+                                        n_or_o_donor = atom
 
-                            #Saber qual o H do doador 
-                            
-                            carbono_alfa = residue.child_list[0]
-                            
-                            terceiro_vetor= carbono_alfa.get_vector()
-                            neighbor_vector= neighbor.get_vector()
-                            a_vector = atom.get_vector()
+                                    elif (neig_name[0] == 'N' or (neig_name in ['OG', 'OH', 'OG1', 'SG'] and neig_res.resname in list(self.lighbdonor.keys()))) and (atom_name[0] == 'O' or (atom_name in ['SD', 'ND1'] and residue.resname in list(self.lighbac.keys()))):
+                                        # Aqui o doador vai ser o atomo vizinho
+                                        h_donor = residue.child_list[0]
+                                        n_or_o_donor = neighbor
+                                        
+                                    terceiro_vetor= h_donor.get_vector()
+                                    neighbor_vector= neighbor.get_vector()
+                                    a_vector = atom.get_vector()
 
-                            angle = np.degrees(calc_angle( terceiro_vetor,neighbor_vector, a_vector))
-                            if 0.0 < distance <= 3.5 and angle <= 63.0:
-                                print("HBOND",atom, residue.id[1], residue.resname, neighbor, neighbor.get_parent().id[1], neighbor.get_parent().resname, f"{distance:.3f}", angle)
+                                    angle = np.degrees(calc_angle( terceiro_vetor,neighbor_vector, a_vector))
+                                    if 0.0 < distance <= 3.5 and angle <= 63.0:
+                                        
+                                        #Verificando se é a cadeia principal ou lateral 
+                                        if atom.name in ["N", "O"]:
+                                            chain1 = 'MC'
+                                        else:
+                                            chain1 = 'SC'
+                                        
+                                        if neighbor.name in ['N', 'O']:
+                                            chain2 = 'MC'
+                                        else:
+                                            chain2 = 'SC'
+                                        
+                                        self.nodes_id1.append(f"{chain.id}:{str(residue.id[1])}:_:{str(residue.resname)}")
+                                        self.nodes_id2.append(f"{chain.id}:{str(neig_res.id[1])}:_:{str(neig_res.resname)}")
+                                        self.bonds.append(f"HBOND:{chain1}_{chain2}")
+                                        self.distances.append(f"{distance:.3f}")
+                                        self.atom1.append(atom_name)
+                                        self.atom2.append(neig_name)
+                                        self.donors.append(f"{chain.id}:{str(n_or_o_donor.get_parent().id[1])}:_:{str(n_or_o_donor.get_parent().resname)}")
 
-                #Looking for VDW
-                elif atom.fullname[1] in ['C', 'S', 'O', 'N']:
-                    neighbors= self.ns.search(atom.coord, 8)
-                    for neighbor in neighbors:  
-                        if neighbor.get_parent().id[1] == residue.id[1]:
-                            continue
-                        if neighbor.fullname[1] in ['C', 'S', 'O', 'N'] : 
-                            if (atom.fullname[1] == "C" and neighbor.fullname[1]  == "C") or (atom.fullname[1]  == "C" and neighbor.fullname[1]  == "S") or (atom.fullname[1]  == "S" and neighbor.fullname[1]  == "C"):
+                        #Looking for VDW
+                        elif atom.fullname[1] in ['C', 'S', 'O', 'N']:
+                            neighbors= self.ns.search(atom.coord, 8)
+                            for neighbor in neighbors:
+                                is_vdw = False
+
+                                neig_name= neighbor.get_name()
+                                neig_res= neighbor.get_parent()
                                 distance= np.linalg.norm(atom.coord - neighbor.coord)
-                                check_dist= distance - vdw_radii[atom.name[0]] - vdw_radii[neighbor.name[0]]
+                                if neig_res.id[1] == residue.id[1]:
+                                    continue
+                                if neighbor.fullname[1] in ['C', 'S', 'O', 'N'] : 
+
+                                    if atom.name in ["C", "S"]:
+                                        chain1 = 'MC'
+                                    else:
+                                        chain1 = 'SC'
+                                    
+                                    if neighbor.name in ['C', 'S']:
+                                        chain2 = 'MC'
+                                    else:
+                                        chain2 = 'SC'
+
+                                    if (atom.fullname[1] == "C" and neighbor.fullname[1]  == "C") or (atom.fullname[1]  == "C" and neighbor.fullname[1]  == "S") or (atom.fullname[1]  == "S" and neighbor.fullname[1]  == "C"):
+                                        
+                                        is_vdw = True
                                 
-                                if check_dist <= 0.5:
-                                    print("VDW",atom, residue.id[1], residue.resname, neighbor, neighbor.get_parent().id[1], neighbor.get_parent().resname, f"{distance:.3f}")
-                            
-                            elif (atom.get_name()[0] == "N" or atom.get_name()[0] == "O" ) and neighbor.get_name()[0] == "C":
-                                if (residue.resname == 'GLN' and (atom.name == "OE1" or atom.name == "NE2")) or (
-                                    residue.resname == 'ASN' and (atom.name == "OD1" or atom.name == "ND2")):
-                                    distance= np.linalg.norm(atom.coord - neighbor.coord)
+                                    elif (atom_name[0] == "N" or atom_name[0] == "O" ) and neig_name[0] == "C":
+                                        if (residue.resname == 'GLN' and (atom.name == "OE1" or atom.name == "NE2")) or (
+                                            residue.resname == 'ASN' and (atom.name == "OD1" or atom.name == "ND2")):
+                                            
+                                            is_vdw = True
+                                            
+                                    elif (neig_name[0] == "N" or neig_name[0] == "O" ) and atom_name[0] == "C":
+                                        if (neig_res.resname == 'GLN' and (neighbor.name == "OE1" or neighbor.name == "NE2")) or (
+                                            neig_res.resname == 'ASN' and (neighbor.name == "OD1" or neighbor.name == "ND2")):
+                                           
+                                             is_vdw = True
+                                            
+                                if is_vdw:
                                     check_dist= distance - vdw_radii[atom.name[0]] - vdw_radii[neighbor.name[0]]
+                                        
                                     if check_dist <= 0.5:
-                                        print("VDW",atom, residue.id[1], residue.resname, neighbor, neighbor.get_parent().id[1], neighbor.get_parent().resname, f"{distance:.3f}")
-                            elif (neighbor.get_name()[0] == "N" or neighbor.get_name()[0] == "O" ) and atom.get_name()[0] == "C":
-                                if (neighbor.get_parent().resname == 'GLN' and (neighbor.name == "OE1" or neighbor.name == "NE2")) or (
-                                    neighbor.get_parent().resname == 'ASN' and (neighbor.name == "OD1" or neighbor.name == "ND2")):
-                                    distance= np.linalg.norm(atom.coord - neighbor.coord)
-                                    check_dist= distance - vdw_radii[atom.name[0]] - vdw_radii[neighbor.name[0]]
-                                    if check_dist <= 0.5:
-                                        print("VDW",atom, residue.id[1], residue.resname, neighbor, neighbor.get_parent().id[1], neighbor.get_parent().resname, f"{distance:.3f}")
+                                        self.nodes_id1.append(f"{chain.id}:{str(residue.id[1])}:_:{str(residue.resname)}")
+                                        self.nodes_id2.append(f"{chain.id}:{str(neig_res.id[1])}:_:{str(neig_res.resname)}")
+                                        self.donors.append("NaN")
+                                        self.bonds.append(f"VDW:{chain1}_{chain2}")
+                                        self.distances.append(f"{distance:.3f}")
+                                        self.atom1.append(atom_name)
+                                        self.atom2.append(neig_name)
 
-# pymol.cmd.load('./Codes/3og7.pdb', 'myprotein')
-# pymol.cmd.h_add()
-# pymol.cmd.save('./Codes/3og7_2.pdb')
+    def print_output(self):
+        self.Bonds()
+        print(len(self.nodes_id1), len(self.donors))
+        time.sleep(5)
+        for n in range(len(self.nodes_id1)):
+            try:
+                print(f"{self.nodes_id1[n]}\t{self.bonds[n]}\t{self.nodes_id2[n]}\t{self.distances[n]}\t\t{self.atom1[n]}\t{self.atom2[n]}\t{self.donors[n]}")
+
+            except Exception as e:
+                print(e)
+                print(f"{self.nodes_id1[n]}\t{self.bonds[n]}\t{self.nodes_id2[n]}\t{self.distances[n]}\t\t{self.atom1[n]}\t{self.atom2[n]}\t{self.donors[n]}")
 
 
-edges= Edges('3og7', './Codes/3og7_2.pdb')
-edges.Bonds()
+def run(name_= False, file= None):
+    start= time.time()
+
+    if file is None:
+        raise Exception("Load File")
+
+    # pymol.cmd.load(file, 'myprotein')
+    # pymol.cmd.h_add()
+    # pymol.cmd.save('./Codes/input_file.pdb')
+
+    edges= Edges(name_, './Codes/input_file.pdb')
+    edges.print_output()
+
+    print(f"---{(time.time() - start)} seconds ---")
+
+run('3og7', './Codes/3og7.pdb')
