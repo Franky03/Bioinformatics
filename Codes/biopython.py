@@ -121,15 +121,28 @@ class Edges(Nodes):
         self.ns= NeighborSearch(list(self.structure.get_atoms()))
         self.mc = ['O', 'N']
         self.lighbdonor = {'ARG': ['NE', 'NH1', 'NH2'], 
-                            'ASN':['ND2'], 'HIS': ['NE2', 'ND1'], 
-                            'SER': ['OG'], 'TYR': ['OH'], 'CYS': ['SG'],
-                             'THR': ['OG1'], 'GLN': ['NE2'], 'LYS': ['NZ'], 'TRP': ['NE1']}
-        self.lighbac= {'ASN': ['OD1'], 'GLN': ['OE1'],
-                         'MET': ['SD'], 'ASP': ['OD1', 'OD2'], 
-                         'GLU': ['OE1', 'OE2'], 'SER': ['OG'], 
-                         'THR': ['OG1'], 'HIS': ['ND1'], 'TYR': ['OH']}
+                            'ASN':['ND2'], 
+                            'HIS': ['NE2', 'ND1'], 
+                            'SER': ['OG'], 
+                            'TYR': ['OH'], 
+                            'CYS': ['SG'],
+                            'THR': ['OG1'], 
+                            'GLN': ['NE2'], 
+                            'LYS': ['NZ'], 
+                            'TRP': ['NE1']
+                            }
+        self.lighbac= {'ASN': ['OD1'], 
+                        'GLN': ['OE1'],
+                         'MET': ['SD'], 
+                         'ASP': ['OD1', 'OD2'], 
+                         'GLU': ['OE1', 'OE2'], 
+                         'SER': ['OG'], 
+                         'THR': ['OG1'], 
+                         'HIS': ['ND1'], 
+                         'TYR': ['OH']
+                         }
         self.nodes_id1, self.nodes_id2, self.bonds= [], [], []
-        self.distances, self.donors= [], []
+        self.distances, self.donors, self.angles= [], [], []
         self.atom1, self.atom2 = [], []
         
 
@@ -163,6 +176,7 @@ class Edges(Nodes):
         is_vdw = False
         h_donor = [atom for atom in self.structure.get_atoms()][0]
         global n_or_o_donor
+        
 
         #achar como calcular o angulo entre os átomos
         for model in self.structure:
@@ -178,6 +192,7 @@ class Edges(Nodes):
                         if atom.fullname[1] in ['N', 'O'] or (atom_name == 'SG' and residue.resname == 'CYS'):
                             neighbors= self.ns.search(atom.coord, 5.5)
                             for neighbor in neighbors:
+                                
                                 neig_name= neighbor.get_name()
                                 neig_res= neighbor.get_parent()
                                 if neig_res.resname in ['HOH', '032']:
@@ -189,20 +204,38 @@ class Edges(Nodes):
                                     #Verificando quem é doador
                                     if (atom_name[0] == 'N' or (atom_name in ['OG', 'OH', 'OG1', 'SG'] and residue.resname in list(self.lighbdonor.keys()))) and (neig_name[0] == 'O' or (neig_name in ['SD', 'ND1'] and neig_res.resname in list(self.lighbac.keys()))):
                                         # Aqui o doador vai ser o atomo principal
-                                        h_donor = residue.child_list[0]
                                         n_or_o_donor = atom
+                                        h_list = [a for a in residue if a.element == 'H']
+                                        h_distances= {}
+                                        for h_atom in h_list:
+                                            h_dist = np.linalg.norm(atom.coord - h_atom.coord)
+                                            h_distances[h_dist] = h_atom
+                                        min_h = min(list(h_distances.keys()))
+                                        h_donor = h_distances[min_h]
+                                        
 
                                     elif (neig_name[0] == 'N' or (neig_name in ['OG', 'OH', 'OG1', 'SG'] and neig_res.resname in list(self.lighbdonor.keys()))) and (atom_name[0] == 'O' or (atom_name in ['SD', 'ND1'] and residue.resname in list(self.lighbac.keys()))):
                                         # Aqui o doador vai ser o atomo vizinho
-                                        h_donor = residue.child_list[0]
                                         n_or_o_donor = neighbor
+                                        h_list = [a for a in neig_res if a.element == 'H']
+                                        h_distances= {}
+                                        for h_atom in h_list:
+                                            h_dist = np.linalg.norm(neighbor.coord - h_atom.coord)
+                                            h_distances[h_dist] = h_atom
+                                        min_h = min(list(h_distances.keys()))
+                                        h_donor = h_distances[min_h]
                                         
                                     terceiro_vetor= h_donor.get_vector()
                                     neighbor_vector= neighbor.get_vector()
                                     a_vector = atom.get_vector()
 
-                                    angle = np.degrees(calc_angle( terceiro_vetor,neighbor_vector, a_vector))
-                                    if 0.0 < distance <= 3.5 and angle <= 63.0:
+                                    angle = 0.0
+                                    if n_or_o_donor == atom:
+                                        angle = np.degrees(calc_angle(terceiro_vetor,a_vector, neighbor_vector))
+                                    else:
+                                        angle = np.degrees(calc_angle(terceiro_vetor, neighbor_vector, a_vector))
+
+                                    if 2.5 < distance <= 3.5 and angle <= 63.0:
                                         
                                         #Verificando se é a cadeia principal ou lateral 
                                         if atom.name in ["N", "O"]:
@@ -219,6 +252,7 @@ class Edges(Nodes):
                                         self.nodes_id2.append(f"{chain.id}:{str(neig_res.id[1])}:_:{str(neig_res.resname)}")
                                         self.bonds.append(f"HBOND:{chain1}_{chain2}")
                                         self.distances.append(f"{distance:.3f}")
+                                        self.angles.append(angle)
                                         self.atom1.append(atom_name)
                                         self.atom2.append(neig_name)
                                         self.donors.append(f"{chain.id}:{str(n_or_o_donor.get_parent().id[1])}:_:{str(n_or_o_donor.get_parent().resname)}")
@@ -232,10 +266,10 @@ class Edges(Nodes):
                                 neig_name= neighbor.get_name()
                                 neig_res= neighbor.get_parent()
                                 distance= np.linalg.norm(atom.coord - neighbor.coord)
-                                if neig_res.id[1] == residue.id[1]:
+                                if neig_res.id[1] == residue.id[1] or neig_name=="CA" or atom_name=="CA":
                                     continue
-                                if neighbor.fullname[1] in ['C', 'S', 'O', 'N'] : 
-
+                                if neighbor.fullname[1] in ['C', 'S', 'O', 'N'] :
+                                    
                                     if atom.name in ["C", "S"]:
                                         chain1 = 'MC'
                                     else:
@@ -269,10 +303,12 @@ class Edges(Nodes):
                                         self.nodes_id1.append(f"{chain.id}:{str(residue.id[1])}:_:{str(residue.resname)}")
                                         self.nodes_id2.append(f"{chain.id}:{str(neig_res.id[1])}:_:{str(neig_res.resname)}")
                                         self.donors.append("NaN")
+                                        self.angles.append("NaN")
                                         self.bonds.append(f"VDW:{chain1}_{chain2}")
                                         self.distances.append(f"{distance:.3f}")
                                         self.atom1.append(atom_name)
                                         self.atom2.append(neig_name)
+
 
     def print_output(self):
         self.Bonds()
@@ -280,11 +316,12 @@ class Edges(Nodes):
         time.sleep(5)
         for n in range(len(self.nodes_id1)):
             try:
-                print(f"{self.nodes_id1[n]}\t{self.bonds[n]}\t{self.nodes_id2[n]}\t{self.distances[n]}\t\t{self.atom1[n]}\t{self.atom2[n]}\t{self.donors[n]}")
+                print(f"{self.nodes_id1[n]}\t{self.bonds[n]}\t{self.nodes_id2[n]}\t{self.distances[n]}\t{self.angles[n]}\t\t{self.atom1[n]}\t{self.atom2[n]}\t{self.donors[n]}")
+                time.sleep(0.01)
 
             except Exception as e:
                 print(e)
-                print(f"{self.nodes_id1[n]}\t{self.bonds[n]}\t{self.nodes_id2[n]}\t{self.distances[n]}\t\t{self.atom1[n]}\t{self.atom2[n]}\t{self.donors[n]}")
+                print(f"{self.nodes_id1[n]}\t{self.bonds[n]}\t{self.nodes_id2[n]}\t{self.distances[n]}\t{self.angles[n]}\t\t{self.atom1[n]}\t{self.atom2[n]}\t{self.donors[n]}")
 
 
 def run(name_= False, file= None):
