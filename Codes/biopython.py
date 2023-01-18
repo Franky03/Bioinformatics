@@ -1,4 +1,4 @@
-from Bio.PDB import PDBParser, Selection, NeighborSearch, HSExposure
+from Bio.PDB import PDBParser, Selection, NeighborSearch
 from Bio.PDB.DSSP import DSSP
 from Bio.PDB.vectors import calc_angle
 import numpy as np
@@ -147,9 +147,12 @@ class Edges(Nodes):
         self.atom1, self.atom2 = [], []
         
 
-    def test(self):
-        for atoms in self.structure.get_atoms():
-            print(atoms)
+    def pairs(self, num1, num2):
+        if (num1, num2) in self.analyzed_pairs:
+            return True
+        self.analyzed_pairs.append((num2, num1))
+        return False
+        
 
     def Iac(self):
 
@@ -177,13 +180,10 @@ class Edges(Nodes):
         is_vdw = False
         h_donor = [atom for atom in self.structure.get_atoms()][0]
         global n_or_o_donor
+        
 
         # verificar se o par já foi analisado
-
-        # lig_pairs = {}
-        
-        # for residue in self.structure.get_residues():
-        #     lig_pairs[residue.id[1]] = []
+        analyzed_pairs = set()
         
         #achar como calcular o angulo entre os átomos
         for model in self.structure:
@@ -203,9 +203,18 @@ class Edges(Nodes):
                                 neig_name= neighbor.get_name()
                                 neig_res= neighbor.get_parent()
                                 if neig_res.resname in ['HOH', '032']:
-                                    continue
+                                    continue 
                                 if neig_res.id[1] == residue.id[1] or neig_name[0] == atom_name[0]:
-                                            continue
+                                    continue
+
+                                pair = (int(residue.id[1]), int(neig_res.id[1]))
+
+                                if pair in analyzed_pairs:
+                                    continue
+                                else:
+                                    analyzed_pairs.add((int(neig_res.id[1]), int(residue.id[1])))
+
+
                                 if neighbor.fullname[1] in ['N', 'O'] or (neighbor.get_name() == 'SG' and neig_res.resname == 'CYS'):
                                     distance= np.linalg.norm(atom.coord - neighbor.coord)
                                     #Verificando quem é doador
@@ -266,7 +275,7 @@ class Edges(Nodes):
 
                         #Looking for VDW
                         elif atom.fullname[1] in ['C', 'S', 'O', 'N']:
-                            neighbors= self.ns.search(atom.coord, 8)
+                            neighbors= self.ns.search(atom.coord, 3.9)
                             for neighbor in neighbors:
                                 
                                 is_vdw = False
@@ -274,8 +283,19 @@ class Edges(Nodes):
                                 neig_name= neighbor.get_name()
                                 neig_res= neighbor.get_parent()
                                 distance= np.linalg.norm(atom.coord - neighbor.coord)
-                                if neig_res.id[1] == residue.id[1] or neig_name=="CA" or atom_name=="CA"  or (atom_name=='C' and neig_name=='C'):
+                                if neig_res.id[1] == residue.id[1] or neig_name in ["CA", "CH2"] or atom_name in ["CA", "CH2"]  or (atom_name=='C' and neig_name=='C'):
                                     continue
+
+                                if neig_res.resname in ['HOH', '032']:
+                                    continue
+
+                                pair = (int(residue.id[1]), int(neig_res.id[1]))
+                                
+                                if pair in analyzed_pairs:
+                                    continue
+                                else:
+                                    analyzed_pairs.add((int(neig_res.id[1]), int(residue.id[1])))
+
                                 if neighbor.fullname[1] in ['C', 'S', 'O', 'N'] :
                                     
                                     if atom.name in ["C", "S"]:
@@ -343,6 +363,7 @@ def run(name_= False, file= None):
 
     edges= Edges(name_, './Codes/input_file.pdb')
     edges.print_output()
+    
 
     print(f"---{(time.time() - start)} seconds ---")
 
