@@ -141,6 +141,7 @@ class Edges(Nodes):
                          'HIS': ['ND1'], 
                          'TYR': ['OH']
                          }
+        self.ligvdw = ['C','CB', 'CG1', 'CG2', 'CD1', 'CD2', 'CE']
         self.nodes_id1, self.nodes_id2, self.bonds= [], [], []
         self.distances, self.donors, self.angles= [], [], []
         self.atom1, self.atom2 = [], []
@@ -176,8 +177,14 @@ class Edges(Nodes):
         is_vdw = False
         h_donor = [atom for atom in self.structure.get_atoms()][0]
         global n_or_o_donor
-        
 
+        # verificar se o par já foi analisado
+
+        # lig_pairs = {}
+        
+        # for residue in self.structure.get_residues():
+        #     lig_pairs[residue.id[1]] = []
+        
         #achar como calcular o angulo entre os átomos
         for model in self.structure:
             for chain in model:
@@ -252,7 +259,7 @@ class Edges(Nodes):
                                         self.nodes_id2.append(f"{chain.id}:{str(neig_res.id[1])}:_:{str(neig_res.resname)}")
                                         self.bonds.append(f"HBOND:{chain1}_{chain2}")
                                         self.distances.append(f"{distance:.3f}")
-                                        self.angles.append(angle)
+                                        self.angles.append(f"{angle:.3f}")
                                         self.atom1.append(atom_name)
                                         self.atom2.append(neig_name)
                                         self.donors.append(f"{chain.id}:{str(n_or_o_donor.get_parent().id[1])}:_:{str(n_or_o_donor.get_parent().resname)}")
@@ -261,12 +268,13 @@ class Edges(Nodes):
                         elif atom.fullname[1] in ['C', 'S', 'O', 'N']:
                             neighbors= self.ns.search(atom.coord, 8)
                             for neighbor in neighbors:
+                                
                                 is_vdw = False
 
                                 neig_name= neighbor.get_name()
                                 neig_res= neighbor.get_parent()
                                 distance= np.linalg.norm(atom.coord - neighbor.coord)
-                                if neig_res.id[1] == residue.id[1] or neig_name=="CA" or atom_name=="CA":
+                                if neig_res.id[1] == residue.id[1] or neig_name=="CA" or atom_name=="CA"  or (atom_name=='C' and neig_name=='C'):
                                     continue
                                 if neighbor.fullname[1] in ['C', 'S', 'O', 'N'] :
                                     
@@ -281,12 +289,11 @@ class Edges(Nodes):
                                         chain2 = 'SC'
 
                                     if (atom.fullname[1] == "C" and neighbor.fullname[1]  == "C") or (atom.fullname[1]  == "C" and neighbor.fullname[1]  == "S") or (atom.fullname[1]  == "S" and neighbor.fullname[1]  == "C"):
-                                        
                                         is_vdw = True
                                 
                                     elif (atom_name[0] == "N" or atom_name[0] == "O" ) and neig_name[0] == "C":
-                                        if (residue.resname == 'GLN' and (atom.name == "OE1" or atom.name == "NE2")) or (
-                                            residue.resname == 'ASN' and (atom.name == "OD1" or atom.name == "ND2")):
+                                        if (residue.resname == 'GLN' and (atom_name == "OE1" or atom_name == "NE2")) or (
+                                            residue.resname == 'ASN' and (atom_name == "OD1" or atom_name == "ND2")):
                                             
                                             is_vdw = True
                                             
@@ -313,7 +320,7 @@ class Edges(Nodes):
     def print_output(self):
         self.Bonds()
         print(len(self.nodes_id1), len(self.donors))
-        time.sleep(5)
+        time.sleep(2)
         for n in range(len(self.nodes_id1)):
             try:
                 print(f"{self.nodes_id1[n]}\t{self.bonds[n]}\t{self.nodes_id2[n]}\t{self.distances[n]}\t{self.angles[n]}\t\t{self.atom1[n]}\t{self.atom2[n]}\t{self.donors[n]}")
