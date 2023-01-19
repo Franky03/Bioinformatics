@@ -335,8 +335,8 @@ class Edges(Nodes):
                                         self.distances.append(f"{distance:.3f}")
                                         self.atom1.append(atom_name)
                                         self.atom2.append(neig_name)
-
-
+                                        
+    #Quase todos os átomos do RINGs sai aqui, mas raras ocasiões não aparece, por exemplo o B:696-B:710
     def print_output(self):
         self.Bonds()
         print(len(self.nodes_id1), len(self.donors))
