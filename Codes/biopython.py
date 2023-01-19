@@ -178,7 +178,6 @@ class Edges(Nodes):
         chain2= ''
         vdw_radii = {'C': 1.77, 'S': 1.89, 'N': 1.8, 'O': 1.4}
         is_vdw = False
-        h_donor = [atom for atom in self.structure.get_atoms()][0]
         global n_or_o_donor
         
 

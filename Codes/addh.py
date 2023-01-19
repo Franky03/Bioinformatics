@@ -1,5 +1,8 @@
-import pymol
+import os
 
-pymol.cmd.load('3og7.pdb', 'myprotein')
-pymol.cmd.h_add()
-pymol.cmd.save('./hydrogenated/30g7.pdb')
+file = '3og7.pdb'
+file_path = f'{os.getcwd()}/input/{file}'
+output_path = f'{os.getcwd()}/hydrogenated/{file}'
+reduce = 'C:/Users/kaiky/OneDrive/Documentos/GitHub/Bioinformatics/MolProbity-master/bin/linux/reduce'
+cmd = f'{reduce} {file_path} > {output_path}'
+os.system(cmd)
