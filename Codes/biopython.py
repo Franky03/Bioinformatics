@@ -123,7 +123,7 @@ class Nodes:
                                     self.all_dssps, self.degrees, self.bfactors, x, y, z, self.pdb_filename, self.models
         )), columns= colunas)
         
-        data.to_csv(f'./{self.name}.csv', sep='\t', index=False)
+        data.to_csv(f'./{self.name}_nodes.csv', sep='\t', index=False)
  
 
 
@@ -345,25 +345,31 @@ class Edges(Nodes):
                                         self.atom1.append(atom_name)
                                         self.atom2.append(neig_name)
                         # Looking for SBOND
-                        # elif atom_name[0] == 'S':
-                        #     neighbors= self.ns.search(atom.coord, 3.5)
-                        #     for neighbor in neighbors:
-                        #         neig_name= neighbor.get_name()
-                        #         neig_res= neighbor.get_parent()
-                        #         distance= np.linalg.norm(atom.coord - neighbor.coord)
-                        #         if neig_name[0] == 'S' and distance<=2.5:
-                        #             self.nodes_id1.append(f"{chain.id}:{str(residue.id[1])}:_:{str(residue.resname)}")
-                        #             self.nodes_id2.append(f"{chain.id}:{str(neig_res.id[1])}:_:{str(neig_res.resname)}")
-                        #             self.donors.append("NaN")
-                        #             self.angles.append("NaN")
-                        #             self.bonds.append(f"SBOND:{chain1}_{chain2}")
-                        #             self.distances.append(f"{distance:.3f}")
-                        #             self.atom1.append(atom_name)
-                        #             self.atom2.append(neig_name)
+                        if atom_name[0] == 'S':
+                            neighbors= self.ns.search(atom.coord, 3.5)
+                            for neighbor in neighbors:
+                                
+                                if pair in self.analyzed_pairs:
+                                        continue
+                                else:
+                                    self.analyzed_pairs.add((int(neig_res.id[1]), int(residue.id[1])))
+                                        
+                                neig_name= neighbor.get_name()
+                                neig_res= neighbor.get_parent()
+                                distance= np.linalg.norm(atom.coord - neighbor.coord)
+                                if neig_name[0] == 'S' and distance<=2.5:
+                                    self.nodes_id1.append(f"{chain.id}:{str(residue.id[1])}:_:{str(residue.resname)}")
+                                    self.nodes_id2.append(f"{chain.id}:{str(neig_res.id[1])}:_:{str(neig_res.resname)}")
+                                    self.donors.append("NaN")
+                                    self.angles.append("NaN")
+                                    self.bonds.append(f"SBOND:{chain1}_{chain2}")
+                                    self.distances.append(f"{distance:.3f}")
+                                    self.atom1.append(atom_name)
+                                    self.atom2.append(neig_name)
                         # Salt Bridges
-
-                        analyzed_ionic= set()
+                        
                         if residue.resname in ['ARG', 'LYS', 'HIS', 'ASP', 'GLU']:
+                            analyzed_ionic= set()
                             neighbors= self.ns.search(atom.coord, 8)
                             for neighbor in neighbors:
                                 neig_res= neighbor.get_parent()
@@ -404,12 +410,22 @@ class Edges(Nodes):
                                             self.angles.append(f"NAN")
                                             if atom_name in ['CZ', 'NZ']:
                                                 self.atom1.append(atom_name)
-                                            else:
-                                                self.atom1.append(atom.coord)
-                                            self.atom2.append(neig_name)
+                                                self.atom2.append(neighbor.get_coord())
+                                            elif atom_name not in ['CZ', 'NZ'] and neig_name in ['CZ', 'NZ']:
+                                                self.atom1.append(atom.get_coord())
+                                                self.atom2.append(neig_name)
+
                                             self.donors.append(f"{chain.id}:{str(ionic_donor.get_parent().id[1])}:_:{str(ionic_donor.get_parent().resname)}")
+    def to_file(self):
+        self.Bonds()
 
+        colunas= ["NodeId1", "Interaction"	,"NodeId2",	"Distance",	"Angle", "Atom1", "Atom2", "Donor"]
 
+        data= pd.DataFrame(list(zip(self.nodes_id1, self.bonds, self.nodes_id2, self.distances, 
+                                    self.angles, self.atom1, self.atom2, self.donors)), columns= colunas)
+        
+        data.to_csv(f'./{self.name}_edges.csv', sep='\t', index=False)
+        
 
     #Quase todos os átomos do RINGs sai aqui, mas raras ocasiões não aparece, por exemplo o B:696-B:710
     def print_output(self):
@@ -419,10 +435,11 @@ class Edges(Nodes):
         for n in range(len(self.nodes_id1)):
             try:
                 print(f"{self.nodes_id1[n]}\t{self.bonds[n]}\t{self.nodes_id2[n]}\t{self.distances[n]}\t{self.angles[n]}\t\t{self.atom1[n]}\t{self.atom2[n]}\t{self.donors[n]}")
-                time.sleep(0.01)
+                # time.sleep(0.01)
             except Exception as e:
                 print(e)
                 print(f"{self.nodes_id1[n]}\t{self.bonds[n]}\t{self.nodes_id2[n]}\t{self.distances[n]}\t{self.angles[n]}\t\t{self.atom1[n]}\t{self.atom2[n]}\t{self.donors[n]}")
+    
 
 
 def run(name_= False, file= None):
@@ -437,7 +454,7 @@ def run(name_= False, file= None):
     # time.sleep(2)
 
     edges= Edges(name_, './Codes/input_file.pdb')
-    edges.print_output()
+    edges.to_file()
     
 
     print(f"---{(time.time() - start)} seconds ---")
@@ -447,3 +464,4 @@ run('3og7', './Codes/3og7.pdb')
 # Atomo H do doador em uma ponte de hidrogenio 
 # Como diminuir o número de ligações de van der walls
 # Pontos especificos que podem ajudar na análise
+# Percebi que cadeias podem fazer ligações entre si, ex: A:475 e B:715
