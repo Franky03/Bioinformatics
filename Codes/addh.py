@@ -1,8 +1,13 @@
-import os
+import mdtraj as md
+from Bio.PDB import PDBParser
 
-file = '3og7.pdb'
-file_path = f'{os.getcwd()}/input/{file}'
-output_path = f'{os.getcwd()}/hydrogenated/{file}'
-reduce = 'C:/Users/kaiky/OneDrive/Documentos/GitHub/Bioinformatics/MolProbity-master/bin/linux/reduce'
-cmd = f'{reduce} {file_path} > {output_path}'
-os.system(cmd)
+pdb = md.load_pdb('./Codes/3og7.pdb')
+
+dssp = md.compute_dssp(pdb)
+cont=0
+for i, residue in enumerate(pdb.topology.residues):
+    if dssp[0][i] == 'NA':
+        cont +=1
+    print(f"Resíduo {residue} tem estado estrutural secundário {dssp[0][i]}")
+print(dssp)
+print(cont)

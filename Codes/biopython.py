@@ -5,12 +5,18 @@ import numpy as np
 import pandas as pd
 import time
 import pymol
+import mdtraj as md
 
 class Nodes:
     def __init__(self, name_=None,file_=False):
         self.name= name_
         self.parser= PDBParser(PERMISSIVE=1)
         self.structure= self.parser.get_structure(name_, file_)
+
+        #mdtraj
+        self.pdb = md.load_pdb(file_)
+        self.dssp_md = md.compute_dssp(self.pdb, simplified=False)
+        
         self.model= self.structure[0]
         #self.dssp = DSSP(self.model, './Codes/3og7.pdb', file_type='PDB', dssp='dssp')
         self.all_dssps= []
@@ -21,6 +27,7 @@ class Nodes:
         #B-Factor, coords and filenames
         self.bfactors, self.coords, self.pdb_filename =[], [], []
         self.models= []
+        
     
     def dssp_test(self):
         self.search_nodes()
@@ -42,9 +49,6 @@ class Nodes:
                             self.coords.append(np.array(['NaN', 'NaN', 'NaN']))
                         self.residues.append(str(residue.resname))
                         
-                        #DSSP not working
-
-                        self.all_dssps.append('NaN')
                         #Degree
 
                         degree= 0
@@ -79,8 +83,19 @@ class Nodes:
                         
                         #pdb filenames
 
-                        self.pdb_filename.append(f"input_file.pdb#{str(residue.id[1])}.{str(chain.id)}")
+                        self.pdb_filename.append(f"input_file.cif#{str(residue.id[1])}.{str(chain.id)}")
                         self.models.append(model.id + 1)
+
+        # Pegando o DSSP 
+        for i in range(len(self.dssp_md[0])):
+            if i>0:
+                if self.dssp_md[0][i] == 'NA':
+                    pass
+                else:
+                    self.all_dssps.append(self.dssp_md[0][i] if self.dssp_md[0][i] != 'C' else '\t')
+            else:
+                
+                self.all_dssps.append(self.dssp_md[0][i] if self.dssp_md[0][i] not in ['C', 'NA'] else '\t')  
 
     def print_output(self):
         self.search_nodes()
@@ -145,13 +160,8 @@ class Edges(Nodes):
         self.nodes_id1, self.nodes_id2, self.bonds= [], [], []
         self.distances, self.donors, self.angles= [], [], []
         self.atom1, self.atom2 = [], []
+        self.analyzed_pairs = set()
         
-
-    def pairs(self, num1, num2):
-        if (num1, num2) in self.analyzed_pairs:
-            return True
-        self.analyzed_pairs.append((num2, num1))
-        return False
         
 
     def Iac(self):
@@ -179,10 +189,10 @@ class Edges(Nodes):
         vdw_radii = {'C': 1.77, 'S': 1.89, 'N': 1.8, 'O': 1.4}
         is_vdw = False
         global n_or_o_donor
+        global ionic_donor
         
 
         # verificar se o par já foi analisado
-        analyzed_pairs = set()
         
         #achar como calcular o angulo entre os átomos
         for model in self.structure:
@@ -208,10 +218,10 @@ class Edges(Nodes):
 
                                 pair = (int(residue.id[1]), int(neig_res.id[1]))
 
-                                if pair in analyzed_pairs:
+                                if pair in self.analyzed_pairs:
                                     continue
                                 else:
-                                    analyzed_pairs.add((int(neig_res.id[1]), int(residue.id[1])))
+                                    self.analyzed_pairs.add((int(neig_res.id[1]), int(residue.id[1])))
 
 
                                 if neighbor.fullname[1] in ['N', 'O'] or (neighbor.get_name() == 'SG' and neig_res.resname == 'CYS'):
@@ -290,10 +300,10 @@ class Edges(Nodes):
 
                                 pair = (int(residue.id[1]), int(neig_res.id[1]))
                                 
-                                if pair in analyzed_pairs:
+                                if pair in self.analyzed_pairs:
                                     continue
                                 else:
-                                    analyzed_pairs.add((int(neig_res.id[1]), int(residue.id[1])))
+                                    self.analyzed_pairs.add((int(neig_res.id[1]), int(residue.id[1])))
 
                                 if neighbor.fullname[1] in ['C', 'S', 'O', 'N'] :
                                     
@@ -334,7 +344,73 @@ class Edges(Nodes):
                                         self.distances.append(f"{distance:.3f}")
                                         self.atom1.append(atom_name)
                                         self.atom2.append(neig_name)
+                        # Looking for SBOND
+                        # elif atom_name[0] == 'S':
+                        #     neighbors= self.ns.search(atom.coord, 3.5)
+                        #     for neighbor in neighbors:
+                        #         neig_name= neighbor.get_name()
+                        #         neig_res= neighbor.get_parent()
+                        #         distance= np.linalg.norm(atom.coord - neighbor.coord)
+                        #         if neig_name[0] == 'S' and distance<=2.5:
+                        #             self.nodes_id1.append(f"{chain.id}:{str(residue.id[1])}:_:{str(residue.resname)}")
+                        #             self.nodes_id2.append(f"{chain.id}:{str(neig_res.id[1])}:_:{str(neig_res.resname)}")
+                        #             self.donors.append("NaN")
+                        #             self.angles.append("NaN")
+                        #             self.bonds.append(f"SBOND:{chain1}_{chain2}")
+                        #             self.distances.append(f"{distance:.3f}")
+                        #             self.atom1.append(atom_name)
+                        #             self.atom2.append(neig_name)
+                        # Salt Bridges
+
+                        analyzed_ionic= set()
+                        if residue.resname in ['ARG', 'LYS', 'HIS', 'ASP', 'GLU']:
+                            neighbors= self.ns.search(atom.coord, 8)
+                            for neighbor in neighbors:
+                                neig_res= neighbor.get_parent()
+                                neig_name= neighbor.get_name()
+                                if neig_res.id[1] == residue.id[1]:
+                                    continue
+                                if atom_name in ['CZ', 'NZ'] or neig_res in ['CZ', 'NZ']:
+                                    pair = (int(residue.id[1]), int(neig_res.id[1]))
+                                    
+                                    if pair in self.analyzed_pairs or pair in analyzed_ionic:
+                                        continue
+                                    else:
+                                        self.analyzed_pairs.add((int(neig_res.id[1]), int(residue.id[1])))
+                                        analyzed_ionic.add(pair)
+
+                                    if neig_res.resname in ['ARG', 'LYS', 'HIS', 'ASP', 'GLU']:
                                         
+                                        
+                                        if residue.resname in ['ARG', 'LYS', 'HIS'] and neig_res.resname in ['ASP', 'GLU']:
+                                            # aqui o átomo vai ser o doador 
+                                            ionic_donor= atom
+
+                                        elif neig_res.resname in ['ARG', 'LYS', 'HIS'] and residue.resname in ['ASP', 'GLU']:
+                                            # aqui o neighbor vai ser o doador
+                                            ionic_donor = neighbor
+                                            
+                                        chain1= 'MC' if len(atom_name)==1 else 'SC'
+                                        chain2= 'MC' if len(neig_name)==1 else 'SC'
+                                            
+                                        distance = np.linalg.norm(atom.coord - neighbor.coord)
+                                        # angle = np.degrees(calc_angle())
+                                        
+                                        if distance <= 4.0:
+                                            self.nodes_id1.append(f"{chain.id}:{str(residue.id[1])}:_:{str(residue.resname)}")
+                                            self.nodes_id2.append(f"{chain.id}:{str(neig_res.id[1])}:_:{str(neig_res.resname)}")
+                                            self.bonds.append(f"IONIC:{chain1}_{chain2}")
+                                            self.distances.append(f"{distance:.3f}")
+                                            self.angles.append(f"NAN")
+                                            if atom_name in ['CZ', 'NZ']:
+                                                self.atom1.append(atom_name)
+                                            else:
+                                                self.atom1.append(atom.coord)
+                                            self.atom2.append(neig_name)
+                                            self.donors.append(f"{chain.id}:{str(ionic_donor.get_parent().id[1])}:_:{str(ionic_donor.get_parent().resname)}")
+
+
+
     #Quase todos os átomos do RINGs sai aqui, mas raras ocasiões não aparece, por exemplo o B:696-B:710
     def print_output(self):
         self.Bonds()
@@ -343,7 +419,7 @@ class Edges(Nodes):
         for n in range(len(self.nodes_id1)):
             try:
                 print(f"{self.nodes_id1[n]}\t{self.bonds[n]}\t{self.nodes_id2[n]}\t{self.distances[n]}\t{self.angles[n]}\t\t{self.atom1[n]}\t{self.atom2[n]}\t{self.donors[n]}")
-
+                time.sleep(0.01)
             except Exception as e:
                 print(e)
                 print(f"{self.nodes_id1[n]}\t{self.bonds[n]}\t{self.nodes_id2[n]}\t{self.distances[n]}\t{self.angles[n]}\t\t{self.atom1[n]}\t{self.atom2[n]}\t{self.donors[n]}")
@@ -357,7 +433,8 @@ def run(name_= False, file= None):
 
     # pymol.cmd.load(file, 'myprotein')
     # pymol.cmd.h_add()
-    # pymol.cmd.save('./Codes/input_file.pdb')
+    # pymol.cmd.save('./Codes/input_file2.pdb')
+    # time.sleep(2)
 
     edges= Edges(name_, './Codes/input_file.pdb')
     edges.print_output()
@@ -366,3 +443,7 @@ def run(name_= False, file= None):
     print(f"---{(time.time() - start)} seconds ---")
 
 run('3og7', './Codes/3og7.pdb')
+
+# Atomo H do doador em uma ponte de hidrogenio 
+# Como diminuir o número de ligações de van der walls
+# Pontos especificos que podem ajudar na análise
